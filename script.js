@@ -1,4 +1,4 @@
-// 1. Ініціалізація карти (центр - Україна)
+// 1. Ініціалізація карти
 const map = L.map('map', {
     zoomControl: false
 }).setView([48.3794, 31.1656], 7);
@@ -66,7 +66,50 @@ map.on('click', function(e) {
 });
 
 
-// --- СИМУЛЯЦІЯ РУХОМИХ ОБ'ЄКТІВ ТА ПЕРЕХОПЛЕННЯ ---
+// --- ЗОНИ КОНТРОЛЮ ТА РАДІУСИ ДІЇ (РЛС / ППО) ---
+let zonesVisible = true;
+const btnZones = document.getElementById('btn-zones');
+const zonesLayer = L.layerGroup().addTo(map);
+
+// Центр розгортання системи (наші сили)
+const radarCenter = [48.3794, 31.1656];
+
+function renderRadarZones() {
+    zonesLayer.clearLayers();
+    if (!zonesVisible) return;
+
+    // Концентричні кола радіусів дії (наприклад, 50 км, 100 км, 150 км)
+    const radii = [50000, 100000, 150000]; // в метрах
+    radii.forEach((radius, index) => {
+        L.circle(radarCenter, {
+            radius: radius,
+            color: '#007bff',
+            weight: 1,
+            dashArray: '3, 6',
+            fillColor: '#007bff',
+            fillOpacity: 0.03
+        }).addTo(zonesLayer).bindPopup(`<b>Зона дії РЛС #${index + 1}</b><br>Радіус: ${radius / 1000} км`);
+    });
+
+    // Маркер центру керування
+    L.circleMarker(radarCenter, {
+        radius: 8,
+        color: '#fff',
+        fillColor: '#28a745',
+        fillOpacity: 1
+    }).addTo(zonesLayer).bindPopup(`<b>Центр управління / РЛС</b>`);
+}
+
+renderRadarZones();
+
+btnZones.addEventListener('click', () => {
+    zonesVisible = !zonesVisible;
+    btnZones.classList.toggle('active', zonesVisible);
+    renderRadarZones();
+});
+
+
+// --- СИМУЛЯЦІЯ РУХУ ТА ПЕРЕХОПЛЕННЯ ---
 let simulationActive = true;
 const btnSim = document.getElementById('btn-sim');
 
@@ -110,8 +153,8 @@ units.forEach(unit => {
 
 let selectedTarget = units.find(u => u.id === 'drone-2');
 let interceptor = {
-    lat: 48.3794,
-    lng: 31.1656,
+    lat: radarCenter[0],
+    lng: radarCenter[1],
     speedKmH: 250
 };
 
