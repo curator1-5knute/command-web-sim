@@ -66,7 +66,7 @@ map.on('click', function(e) {
 });
 
 
-// --- СИМУЛЯЦІЯ РУХОМИХ ОБ'ЄКТІВ (ЮНІТІВ) ---
+// --- СИМУЛЯЦІЯ РУХОМИХ ОБ'ЄКТІВ ТА ПЕРЕХОПЛЕННЯ ---
 let simulationActive = true;
 const btnSim = document.getElementById('btn-sim');
 
@@ -76,15 +76,14 @@ btnSim.addEventListener('click', () => {
     btnSim.innerText = simulationActive ? "▶ Симуляція руху (Увімк)" : "⏸ Симуляція (Зупинено)";
 });
 
-// Створюємо масив умовних рухомих об'єктів (наприклад, БПЛА)
 const units = [
     {
         id: 'drone-1',
         name: 'БПЛА #1',
-        lat: 49.8397, // Початкові координати (наприклад, район Запоріжжя/Дніпра)
+        lat: 49.8397,
         lng: 35.1396,
-        speedKmH: 150, // Швидкість км/год
-        heading: 45,   // Кут руху в градусах
+        speedKmH: 150,
+        heading: 45,
         marker: null
     },
     {
@@ -98,7 +97,6 @@ const units = [
     }
 ];
 
-// Ініціалізація маркерів юнітів на карті
 units.forEach(unit => {
     const customIcon = L.divIcon({
         className: 'custom-unit-marker',
@@ -110,24 +108,55 @@ units.forEach(unit => {
     unit.marker = L.marker([unit.lat, unit.lng], { icon: customIcon }).addTo(map);
 });
 
-// Функція оновлення положення об'єктів (тік симуляції кожну секунду)
-function updateSimulation() {
+let selectedTarget = units.find(u => u.id === 'drone-2');
+let interceptor = {
+    lat: 48.3794,
+    lng: 31.1656,
+    speedKmH: 250
+};
+
+const interceptLine = L.polyline([], { color: '#ff4444', weight: 2, dashArray: '4, 4' }).addTo(map);
+
+function calculateIntercept(target, interceptor) {
+    const targetLatLng = L.latLng(target.lat, target.lng);
+    const interceptorLatLng = L.latLng(interceptor.lat, interceptor.lng);
+    
+    const distanceMeters = interceptorLatLng.distanceTo(targetLatLng);
+    const distanceKm = distanceMeters / 1000;
+
+    const closingSpeed = interceptor.speedKmH - (target.speedKmH * 0.5);
+    const timeHours = closingSpeed > 0 ? distanceKm / closingSpeed : 0;
+    const timeMinutes = Math.round(timeHours * 60);
+
+    return {
+        distanceKm: distanceKm.toFixed(1),
+        timeMinutes: timeMinutes > 0 ? timeMinutes : 0,
+        targetPos: [target.lat, target.lng],
+        interceptorPos: [interceptor.lat, interceptor.lng]
+    };
+}
+
+setInterval(() => {
     if (!simulationActive) return;
 
     units.forEach(unit => {
-        // Проста математика переміщення на основі швидкості та азимуту
-        // 1 градус широти ~= 111 км
-        const distancePerSec = (unit.speedKmH / 3600) / 111; // градуси за секунду
-        
+        const distancePerSec = (unit.speedKmH / 3600) / 111;
         const rad = (unit.heading * Math.PI) / 180;
         unit.lat += distancePerSec * Math.cos(rad);
         unit.lng += (distancePerSec * Math.sin(rad)) / Math.cos(unit.lat * Math.PI / 180);
 
-        // Оновлюємо позицію маркера на карті
         unit.marker.setLatLng([unit.lat, unit.lng]);
-        unit.marker.bindPopup(`<b>${unit.name}</b><br>Швидкість: ${unit.speedKmH} км/год<br>Курс: ${unit.heading}°`);
     });
-}
 
-// Запускаємо цикл симуляції (1 раз на секунду)
-setInterval(updateSimulation, 1000);
+    if (selectedTarget) {
+        const data = calculateIntercept(selectedTarget, interceptor);
+        interceptLine.setLatLngs([data.interceptorPos, data.targetPos]);
+
+        selectedTarget.marker.bindPopup(
+            `<b>Ціль: ${selectedTarget.name}</b><br>` +
+            `Швидкість: ${selectedTarget.speedKmH} км/год<br>` +
+            `<b>Дистанція до перехоплення:</b> ${data.distanceKm} км<br>` +
+            `<b>Час до зближення:</b> ~${data.timeMinutes} хв`
+        );
+    }
+}, 1000);
