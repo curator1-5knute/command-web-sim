@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Симулятор ситуаційної обізнаності</title>
+    <!-- Підключення стилів Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Верхня панель управління (як на відео) -->
+    <div id="top-panel">
+        <button id="btn-ruler">📏 Лінійка</button>
+        <button id="btn-grid">🌐 Сітка координат</button>
+        <span id="coord-display">Курсор: --</span>
+    </div>
+
+    <!-- Контейнер карти -->
+    <div id="map"></div>
+
+    <!-- Підключення скриптів Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
