@@ -1,7 +1,7 @@
-// 1. Ініціалізація карти
+// 1. Ініціалізація карти (центр - Україна)
 const map = L.map('map', {
     zoomControl: false
-}).setView([48.3794, 31.1656], 7);
+}).setView([48.3794, 31.1656], 6);
 
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
@@ -38,48 +38,52 @@ btnClear.addEventListener('click', () => {
     polylineLayer.setLatLngs([]);
 });
 
+// Режим додавання цілі кліком
+let targetCreationMode = false;
+
 map.on('click', function(e) {
-    if (!rulerActive) return;
+    if (rulerActive) {
+        const clickedLatLng = e.latlng;
+        points.push(clickedLatLng);
 
-    const clickedLatLng = e.latlng;
-    points.push(clickedLatLng);
+        const marker = L.circleMarker(clickedLatLng, {
+            radius: 6,
+            color: '#fff',
+            fillColor: '#0056b3',
+            fillOpacity: 1
+        }).addTo(markersLayer);
 
-    const marker = L.circleMarker(clickedLatLng, {
-        radius: 6,
-        color: '#fff',
-        fillColor: '#0056b3',
-        fillOpacity: 1
-    }).addTo(markersLayer);
+        polylineLayer.setLatLngs(points);
 
-    polylineLayer.setLatLngs(points);
-
-    if (points.length > 1) {
-        let totalDistance = 0;
-        for (let i = 1; i < points.length; i++) {
-            totalDistance += points[i - 1].distanceTo(points[i]);
+        if (points.length > 1) {
+            let totalDistance = 0;
+            for (let i = 1; i < points.length; i++) {
+                totalDistance += points[i - 1].distanceTo(points[i]);
+            }
+            const distanceKm = (totalDistance / 1000).toFixed(2);
+            marker.bindPopup(`<b>Дистанція:</b> ${distanceKm} км`).openPopup();
+        } else {
+            marker.bindPopup(`<b>Старт</b>`).openPopup();
         }
-        const distanceKm = (totalDistance / 1000).toFixed(2);
-        marker.bindPopup(`<b>Дистанція:</b> ${distanceKm} км`).openPopup();
-    } else {
-        marker.bindPopup(`<b>Старт</b>`).openPopup();
+    } else if (targetCreationMode) {
+        // Додаємо нову реалістичну ціль у місці кліку
+        addNewThreat(e.latlng.lat, e.latlng.lng);
+        targetCreationMode = false;
+        map.getContainer().style.cursor = '';
     }
 });
 
 
-// --- ЗОНИ КОНТРОЛЮ ТА РАДІУСИ ДІЇ (РЛС / ППО) ---
+// --- ЗОНИ КОНТРОЛЮ ТА РАДІУСИ ДІЇ ---
 let zonesVisible = true;
-const btnZones = document.getElementById('btn-zones');
 const zonesLayer = L.layerGroup().addTo(map);
-
-// Центр розгортання системи (наші сили)
 const radarCenter = [48.3794, 31.1656];
 
 function renderRadarZones() {
     zonesLayer.clearLayers();
     if (!zonesVisible) return;
 
-    // Концентричні кола радіусів дії (наприклад, 50 км, 100 км, 150 км)
-    const radii = [50000, 100000, 150000]; // в метрах
+    const radii = [100000, 200000, 300000]; // 100, 200, 300 км
     radii.forEach((radius, index) => {
         L.circle(radarCenter, {
             radius: radius,
@@ -87,119 +91,95 @@ function renderRadarZones() {
             weight: 1,
             dashArray: '3, 6',
             fillColor: '#007bff',
-            fillOpacity: 0.03
-        }).addTo(zonesLayer).bindPopup(`<b>Зона дії РЛС #${index + 1}</b><br>Радіус: ${radius / 1000} км`);
+            fillOpacity: 0.02
+        }).addTo(zonesLayer);
     });
-
-    // Маркер центру керування
-    L.circleMarker(radarCenter, {
-        radius: 8,
-        color: '#fff',
-        fillColor: '#28a745',
-        fillOpacity: 1
-    }).addTo(zonesLayer).bindPopup(`<b>Центр управління / РЛС</b>`);
 }
-
 renderRadarZones();
 
-btnZones.addEventListener('click', () => {
-    zonesVisible = !zonesVisible;
-    btnZones.classList.toggle('active', zonesVisible);
-    renderRadarZones();
-});
 
+// --- БАЗА ДАНИХ ТА СИМУЛЯЦІЯ ЗАГРОЗ (РОСІЙСЬКІ РАКЕТИ ТА БПЛА) ---
 
-// --- СИМУЛЯЦІЯ РУХУ ТА ПЕРЕХОПЛЕННЯ ---
-let simulationActive = true;
-const btnSim = document.getElementById('btn-sim');
-
-btnSim.addEventListener('click', () => {
-    simulationActive = !simulationActive;
-    btnSim.classList.toggle('active', simulationActive);
-    btnSim.innerText = simulationActive ? "▶ Симуляція руху (Увімк)" : "⏸ Симуляція (Зупинено)";
-});
-
-const units = [
-    {
-        id: 'drone-1',
-        name: 'БПЛА #1',
-        lat: 49.8397,
-        lng: 35.1396,
-        speedKmH: 150,
-        heading: 45,
-        marker: null
-    },
-    {
-        id: 'drone-2',
-        name: 'Ціль #2',
-        lat: 47.8388,
-        lng: 35.1395,
-        speedKmH: 120,
-        heading: 310,
-        marker: null
-    }
-];
-
-units.forEach(unit => {
-    const customIcon = L.divIcon({
-        className: 'custom-unit-marker',
-        html: `<div style="background: #ff4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #fff; white-space: nowrap;">✈ ${unit.name}</div>`,
-        iconSize: [60, 20],
-        iconAnchor: [30, 10]
-    });
-
-    unit.marker = L.marker([unit.lat, unit.lng], { icon: customIcon }).addTo(map);
-});
-
-let selectedTarget = units.find(u => u.id === 'drone-2');
-let interceptor = {
-    lat: radarCenter[0],
-    lng: radarCenter[1],
-    speedKmH: 250
+// Шаблони реалістичних загроз із їхніми типовими швидкостями (км/год)
+const threatTypes = {
+    'shahed': { name: 'БПЛА "Герань-2" (Шахед)', speed: 150, color: '#ffaa00', icon: '🛸' },
+    'cruise': { name: 'Крилата ракета Х-101 / Калібр', speed: 750, color: '#ff4444', icon: '🚀' },
+    'ballistic': { name: 'Балістична ракета (Іскандер-М)', speed: 3500, color: '#cc0000', icon: '⚡' }
 };
 
-const interceptLine = L.polyline([], { color: '#ff4444', weight: 2, dashArray: '4, 4' }).addTo(map);
+let activeThreats = [];
+const threatsLayer = L.layerGroup().addTo(map);
 
-function calculateIntercept(target, interceptor) {
-    const targetLatLng = L.latLng(target.lat, target.lng);
-    const interceptorLatLng = L.latLng(interceptor.lat, interceptor.lng);
+// Функція створення нової загрози
+function addNewThreat(lat, lng) {
+    // Вибираємо тип загрози через випадаюче вікно або за замовчуванням (наприклад, Крилата ракета)
+    const typeKey = prompt("Виберіть тип загрози:\n1 - БПЛА Шахед (150 км/год)\n2 - Крилата ракета (750 км/год)\n3 - Балістика (3500 км/год)", "2");
     
-    const distanceMeters = interceptorLatLng.distanceTo(targetLatLng);
-    const distanceKm = distanceMeters / 1000;
+    let selectedType = threatTypes['cruise'];
+    if (typeKey === '1') selectedType = threatTypes['shahed'];
+    if (typeKey === '3') selectedType = threatTypes['ballistic'];
 
-    const closingSpeed = interceptor.speedKmH - (target.speedKmH * 0.5);
-    const timeHours = closingSpeed > 0 ? distanceKm / closingSpeed : 0;
-    const timeMinutes = Math.round(timeHours * 60);
+    const heading = parseFloat(prompt("Введіть курс (азимут у градусах від 0 до 360):", "45")) || 0;
 
-    return {
-        distanceKm: distanceKm.toFixed(1),
-        timeMinutes: timeMinutes > 0 ? timeMinutes : 0,
-        targetPos: [target.lat, target.lng],
-        interceptorPos: [interceptor.lat, interceptor.lng]
+    const threat = {
+        id: Date.now(),
+        name: selectedType.name,
+        icon: selectedType.icon,
+        lat: lat,
+        lng: lng,
+        speedKmH: selectedType.speed,
+        heading: heading,
+        color: selectedType.color,
+        marker: null
     };
+
+    const customIcon = L.divIcon({
+        className: 'custom-threat-marker',
+        html: `<div style="background: ${threat.color}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #fff; white-space: nowrap;">${threat.icon} ${threat.name}</div>`,
+        iconSize: [120, 20],
+        iconAnchor: [60, 10]
+    });
+
+    threat.marker = L.marker([threat.lat, threat.lng], { icon: customIcon }).addTo(threatsLayer);
+    activeThreats.push(threat);
 }
+
+// Додамо кнопку на верхню панель для запуску створення цілі
+const topPanel = document.getElementById('top-panel');
+const btnAddThreat = document.createElement('button');
+btnAddThreat.innerHTML = "➕ Додати ціль на карту";
+btnAddThreat.style.background = "#8b0000";
+topPanel.insertBefore(btnAddThreat, topPanel.firstChild);
+
+btnAddThreat.addEventListener('click', () => {
+    targetCreationMode = true;
+    rulerActive = false; // Вимикаємо лінійку
+    map.getContainer().style.cursor = 'crosshair';
+    alert("Клікніть на будь-яке місце на карті, щоб розмістити ворожу ціль.");
+});
+
+
+// --- ГОЛОВНИЙ ЦИКЛ СИМУЛЯЦІЇ РУХУ ---
+let simulationActive = true;
 
 setInterval(() => {
     if (!simulationActive) return;
 
-    units.forEach(unit => {
-        const distancePerSec = (unit.speedKmH / 3600) / 111;
-        const rad = (unit.heading * Math.PI) / 180;
-        unit.lat += distancePerSec * Math.cos(rad);
-        unit.lng += (distancePerSec * Math.sin(rad)) / Math.cos(unit.lat * Math.PI / 180);
+    activeThreats.forEach(threat => {
+        // Розрахунок переміщення за 1 секунду відповідно до реалістичної швидкості
+        const distancePerSec = (threat.speedKmH / 3600) / 111; // градуси за секунду
+        const rad = (threat.heading * Math.PI) / 180;
+        
+        threat.lat += distancePerSec * Math.cos(rad);
+        threat.lng += (distancePerSec * Math.sin(rad)) / Math.cos(threat.lat * Math.PI / 180);
 
-        unit.marker.setLatLng([unit.lat, unit.lng]);
-    });
-
-    if (selectedTarget) {
-        const data = calculateIntercept(selectedTarget, interceptor);
-        interceptLine.setLatLngs([data.interceptorPos, data.targetPos]);
-
-        selectedTarget.marker.bindPopup(
-            `<b>Ціль: ${selectedTarget.name}</b><br>` +
-            `Швидкість: ${selectedTarget.speedKmH} км/год<br>` +
-            `<b>Дистанція до перехоплення:</b> ${data.distanceKm} км<br>` +
-            `<b>Час до зближення:</b> ~${data.timeMinutes} хв`
+        // Оновлюємо координати на карті
+        threat.marker.setLatLng([threat.lat, threat.lng]);
+        threat.marker.bindPopup(
+            `<b>${threat.name}</b><br>` +
+            `Швидкість: ${threat.speedKmH} км/год<br>` +
+            `Курс: ${threat.heading}°<br>` +
+            `Координати: ${threat.lat.toFixed(2)}, ${threat.lng.toFixed(2)}`
         );
-    }
+    });
 }, 1000);
