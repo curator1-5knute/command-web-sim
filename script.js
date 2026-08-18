@@ -10,14 +10,15 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// 2. Відстеження координат курсора
+// 2. Координати курсора
 const coordDisplay = document.getElementById('coord-display');
-
-map.on('mousemove', function(e) {
-    const lat = e.latlng.lat.toFixed(4);
-    const lng = e.latlng.lng.toFixed(4);
-    coordDisplay.innerText = `Шир: ${lat}, Довг: ${lng}`;
-});
+if (coordDisplay) {
+    map.on('mousemove', function(e) {
+        const lat = e.latlng.lat.toFixed(4);
+        const lng = e.latlng.lng.toFixed(4);
+        coordDisplay.innerText = `Шир: ${lat}, Довг: ${lng}`;
+    });
+}
 
 // 3. Інструмент «Лінійка»
 let rulerActive = false;
@@ -28,31 +29,37 @@ let polylineLayer = L.polyline([], { color: '#0056b3', weight: 3, dashArray: '5,
 const btnRuler = document.getElementById('btn-ruler');
 const btnClear = document.getElementById('btn-clear');
 
-btnRuler.addEventListener('click', () => {
-    rulerActive = !rulerActive;
-    targetCreationMode = false;
-    btnRuler.classList.toggle('active', rulerActive);
-    map.getContainer().style.cursor = rulerActive ? 'crosshair' : '';
-});
+if (btnRuler) {
+    btnRuler.addEventListener('click', () => {
+        rulerActive = !rulerActive;
+        targetCreationMode = false;
+        btnRuler.classList.toggle('active', rulerActive);
+        map.getContainer().style.cursor = rulerActive ? 'crosshair' : '';
+    });
+}
 
-btnClear.addEventListener('click', () => {
-    points = [];
-    markersLayer.clearLayers();
-    polylineLayer.setLatLngs([]);
-});
+if (btnClear) {
+    btnClear.addEventListener('click', () => {
+        points = [];
+        markersLayer.clearLayers();
+        polylineLayer.setLatLngs([]);
+    });
+}
 
-// 4. Додавання загроз (цілей)
+// 4. Додавання загроз
 let targetCreationMode = false;
 const btnAddThreat = document.getElementById('btn-add-threat');
 
-btnAddThreat.addEventListener('click', () => {
-    targetCreationMode = !targetCreationMode;
-    rulerActive = false;
-    btnAddThreat.classList.toggle('active', targetCreationMode);
-    map.getContainer().style.cursor = targetCreationMode ? 'crosshair' : '';
-});
+if (btnAddThreat) {
+    btnAddThreat.addEventListener('click', () => {
+        targetCreationMode = !targetCreationMode;
+        rulerActive = false;
+        btnAddThreat.classList.toggle('active', targetCreationMode);
+        map.getContainer().style.cursor = targetCreationMode ? 'crosshair' : '';
+    });
+}
 
-// Головний обробник кліків по карті
+// Кліки по карті
 map.on('click', function(e) {
     if (rulerActive) {
         points.push(e.latlng);
@@ -74,7 +81,7 @@ map.on('click', function(e) {
     } 
     else if (targetCreationMode) {
         targetCreationMode = false;
-        btnAddThreat.classList.remove('active');
+        if (btnAddThreat) btnAddThreat.classList.remove('active');
         map.getContainer().style.cursor = '';
 
         const typeKey = prompt("Виберіть тип загрози:\n1 - БПЛА Шахед (150 км/год)\n2 - Крилата ракета Х-101 (750 км/год)\n3 - Балістика (3500 км/год)", "2");
@@ -106,18 +113,20 @@ map.on('click', function(e) {
     }
 });
 
-// 5. Симуляція руху
+// 5. Симуляція
 let simulationActive = true;
 const btnSim = document.getElementById('btn-sim');
 let activeThreats = [];
 
-btnSim.addEventListener('click', () => {
-    simulationActive = !simulationActive;
-    btnSim.classList.toggle('active', simulationActive);
-    btnSim.innerText = simulationActive ? "▶ Симуляція" : "⏸ Пауза";
-});
+if (btnSim) {
+    btnSim.addEventListener('click', () => {
+        simulationActive = !simulationActive;
+        btnSim.classList.toggle('active', simulationActive);
+        btnSim.innerText = simulationActive ? "▶ Симуляція" : "⏸ Пауза";
+    });
+}
 
-// Початкова тестова ціль
+// Тестова ціль
 const initialThreat = {
     lat: 47.8388,
     lng: 35.1395,
@@ -134,7 +143,7 @@ const initialThreat = {
 };
 activeThreats.push(initialThreat);
 
-// Тік симуляції щомиті
+// Оновлення кожної секунди
 setInterval(() => {
     if (!simulationActive) return;
 
