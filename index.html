@@ -4,21 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Симулятор ситуаційної обізнаності</title>
+    <!-- Підключення стилів Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+    <!-- Панель управління -->
     <div id="top-panel">
         <button id="btn-ruler">📏 Лінійка</button>
-        <button id="btn-sim" class="active">▶ Симуляція руху</button>
-        <button id="btn-zones" class="active">🎯 Зони та РЛС</button>
-        <button id="btn-clear">🗑️ Очистити лінійку</button>
+        <button id="btn-add-threat">➕ Додати ціль</button>
+        <button id="btn-sim" class="active">▶ Симуляція</button>
+        <button id="btn-clear">🗑️ Очистити</button>
         <span id="coord-display">Курсор: --</span>
     </div>
 
+    <!-- Карта -->
     <div id="map"></div>
 
+    <!-- Підключення скриптів Leaflet та нашого коду -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="script.js"></script>
 </body>
