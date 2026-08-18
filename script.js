@@ -10,6 +10,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
+// 2. Відстеження координат курсора
 const coordDisplay = document.getElementById('coord-display');
 
 map.on('mousemove', function(e) {
@@ -18,7 +19,7 @@ map.on('mousemove', function(e) {
     coordDisplay.innerText = `Шир: ${lat}, Довг: ${lng}`;
 });
 
-// --- ІНСТРУМЕНТ «ЛІНІЙКА» ---
+// 3. Інструмент «Лінійка»
 let rulerActive = false;
 let points = [];
 let markersLayer = L.layerGroup().addTo(map);
@@ -29,7 +30,9 @@ const btnClear = document.getElementById('btn-clear');
 
 btnRuler.addEventListener('click', () => {
     rulerActive = !rulerActive;
+    targetCreationMode = false;
     btnRuler.classList.toggle('active', rulerActive);
+    map.getContainer().style.cursor = rulerActive ? 'crosshair' : '';
 });
 
 btnClear.addEventListener('click', () => {
@@ -38,19 +41,23 @@ btnClear.addEventListener('click', () => {
     polylineLayer.setLatLngs([]);
 });
 
-// Режим додавання цілі кліком
+// 4. Додавання загроз (цілей)
 let targetCreationMode = false;
+const btnAddThreat = document.getElementById('btn-add-threat');
 
+btnAddThreat.addEventListener('click', () => {
+    targetCreationMode = !targetCreationMode;
+    rulerActive = false;
+    btnAddThreat.classList.toggle('active', targetCreationMode);
+    map.getContainer().style.cursor = targetCreationMode ? 'crosshair' : '';
+});
+
+// Головний обробник кліків по карті
 map.on('click', function(e) {
     if (rulerActive) {
-        const clickedLatLng = e.latlng;
-        points.push(clickedLatLng);
-
-        const marker = L.circleMarker(clickedLatLng, {
-            radius: 6,
-            color: '#fff',
-            fillColor: '#0056b3',
-            fillOpacity: 1
+        points.push(e.latlng);
+        const marker = L.circleMarker(e.latlng, {
+            radius: 6, color: '#fff', fillColor: '#0056b3', fillOpacity: 1
         }).addTo(markersLayer);
 
         polylineLayer.setLatLngs(points);
@@ -60,126 +67,84 @@ map.on('click', function(e) {
             for (let i = 1; i < points.length; i++) {
                 totalDistance += points[i - 1].distanceTo(points[i]);
             }
-            const distanceKm = (totalDistance / 1000).toFixed(2);
-            marker.bindPopup(`<b>Дистанція:</b> ${distanceKm} км`).openPopup();
+            marker.bindPopup(`<b>Дистанція:</b> ${(totalDistance / 1000).toFixed(2)} км`).openPopup();
         } else {
-            marker.bindPopup(`<b>Старт</b>`).openPopup();
+            marker.bindPopup(`<b>Старт лінійки</b>`).openPopup();
         }
-    } else if (targetCreationMode) {
-        // Додаємо нову реалістичну ціль у місці кліку
-        addNewThreat(e.latlng.lat, e.latlng.lng);
+    } 
+    else if (targetCreationMode) {
         targetCreationMode = false;
+        btnAddThreat.classList.remove('active');
         map.getContainer().style.cursor = '';
+
+        const typeKey = prompt("Виберіть тип загрози:\n1 - БПЛА Шахед (150 км/год)\n2 - Крилата ракета Х-101 (750 км/год)\n3 - Балістика (3500 км/год)", "2");
+        if (!typeKey) return;
+
+        let name = "Крилата ракета", speed = 750, color = "#ff4444", icon = "🚀";
+        if (typeKey === '1') { name = 'БПЛА "Шахед"'; speed = 150; color = "#ffaa00"; icon = "🛸"; }
+        if (typeKey === '3') { name = 'Балістична ракета'; speed = 3500; color = "#cc0000"; icon = "⚡"; }
+
+        const heading = parseFloat(prompt("Введіть курс (азимут у градусах від 0 до 360):", "45")) || 0;
+
+        const threat = {
+            lat: e.latlng.lat,
+            lng: e.latlng.lng,
+            speedKmH: speed,
+            heading: heading,
+            marker: null
+        };
+
+        const customIcon = L.divIcon({
+            className: 'custom-threat-marker',
+            html: `<div style="background: ${color}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #fff; white-space: nowrap;">${icon} ${name}</div>`,
+            iconSize: [120, 20],
+            iconAnchor: [60, 10]
+        });
+
+        threat.marker = L.marker([threat.lat, threat.lng], { icon: customIcon }).addTo(map);
+        activeThreats.push(threat);
     }
 });
 
-
-// --- ЗОНИ КОНТРОЛЮ ТА РАДІУСИ ДІЇ ---
-let zonesVisible = true;
-const zonesLayer = L.layerGroup().addTo(map);
-const radarCenter = [48.3794, 31.1656];
-
-function renderRadarZones() {
-    zonesLayer.clearLayers();
-    if (!zonesVisible) return;
-
-    const radii = [100000, 200000, 300000]; // 100, 200, 300 км
-    radii.forEach((radius, index) => {
-        L.circle(radarCenter, {
-            radius: radius,
-            color: '#007bff',
-            weight: 1,
-            dashArray: '3, 6',
-            fillColor: '#007bff',
-            fillOpacity: 0.02
-        }).addTo(zonesLayer);
-    });
-}
-renderRadarZones();
-
-
-// --- БАЗА ДАНИХ ТА СИМУЛЯЦІЯ ЗАГРОЗ (РОСІЙСЬКІ РАКЕТИ ТА БПЛА) ---
-
-// Шаблони реалістичних загроз із їхніми типовими швидкостями (км/год)
-const threatTypes = {
-    'shahed': { name: 'БПЛА "Герань-2" (Шахед)', speed: 150, color: '#ffaa00', icon: '🛸' },
-    'cruise': { name: 'Крилата ракета Х-101 / Калібр', speed: 750, color: '#ff4444', icon: '🚀' },
-    'ballistic': { name: 'Балістична ракета (Іскандер-М)', speed: 3500, color: '#cc0000', icon: '⚡' }
-};
-
+// 5. Симуляція руху
+let simulationActive = true;
+const btnSim = document.getElementById('btn-sim');
 let activeThreats = [];
-const threatsLayer = L.layerGroup().addTo(map);
 
-// Функція створення нової загрози
-function addNewThreat(lat, lng) {
-    // Вибираємо тип загрози через випадаюче вікно або за замовчуванням (наприклад, Крилата ракета)
-    const typeKey = prompt("Виберіть тип загрози:\n1 - БПЛА Шахед (150 км/год)\n2 - Крилата ракета (750 км/год)\n3 - Балістика (3500 км/год)", "2");
-    
-    let selectedType = threatTypes['cruise'];
-    if (typeKey === '1') selectedType = threatTypes['shahed'];
-    if (typeKey === '3') selectedType = threatTypes['ballistic'];
-
-    const heading = parseFloat(prompt("Введіть курс (азимут у градусах від 0 до 360):", "45")) || 0;
-
-    const threat = {
-        id: Date.now(),
-        name: selectedType.name,
-        icon: selectedType.icon,
-        lat: lat,
-        lng: lng,
-        speedKmH: selectedType.speed,
-        heading: heading,
-        color: selectedType.color,
-        marker: null
-    };
-
-    const customIcon = L.divIcon({
-        className: 'custom-threat-marker',
-        html: `<div style="background: ${threat.color}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #fff; white-space: nowrap;">${threat.icon} ${threat.name}</div>`,
-        iconSize: [120, 20],
-        iconAnchor: [60, 10]
-    });
-
-    threat.marker = L.marker([threat.lat, threat.lng], { icon: customIcon }).addTo(threatsLayer);
-    activeThreats.push(threat);
-}
-
-// Додамо кнопку на верхню панель для запуску створення цілі
-const topPanel = document.getElementById('top-panel');
-const btnAddThreat = document.createElement('button');
-btnAddThreat.innerHTML = "➕ Додати ціль на карту";
-btnAddThreat.style.background = "#8b0000";
-topPanel.insertBefore(btnAddThreat, topPanel.firstChild);
-
-btnAddThreat.addEventListener('click', () => {
-    targetCreationMode = true;
-    rulerActive = false; // Вимикаємо лінійку
-    map.getContainer().style.cursor = 'crosshair';
-    alert("Клікніть на будь-яке місце на карті, щоб розмістити ворожу ціль.");
+btnSim.addEventListener('click', () => {
+    simulationActive = !simulationActive;
+    btnSim.classList.toggle('active', simulationActive);
+    btnSim.innerText = simulationActive ? "▶ Симуляція" : "⏸ Пауза";
 });
 
+// Початкова тестова ціль
+const initialThreat = {
+    lat: 47.8388,
+    lng: 35.1395,
+    speedKmH: 750,
+    heading: 310,
+    marker: L.marker([47.8388, 35.1395], {
+        icon: L.divIcon({
+            className: 'custom-threat-marker',
+            html: `<div style="background: #ff4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; border: 1px solid #fff; white-space: nowrap;">🚀 Х-101 (Ціль)</div>`,
+            iconSize: [120, 20],
+            iconAnchor: [60, 10]
+        })
+    }).addTo(map)
+};
+activeThreats.push(initialThreat);
 
-// --- ГОЛОВНИЙ ЦИКЛ СИМУЛЯЦІЇ РУХУ ---
-let simulationActive = true;
-
+// Тік симуляції щомиті
 setInterval(() => {
     if (!simulationActive) return;
 
     activeThreats.forEach(threat => {
-        // Розрахунок переміщення за 1 секунду відповідно до реалістичної швидкості
-        const distancePerSec = (threat.speedKmH / 3600) / 111; // градуси за секунду
+        const distancePerSec = (threat.speedKmH / 3600) / 111;
         const rad = (threat.heading * Math.PI) / 180;
         
         threat.lat += distancePerSec * Math.cos(rad);
         threat.lng += (distancePerSec * Math.sin(rad)) / Math.cos(threat.lat * Math.PI / 180);
 
-        // Оновлюємо координати на карті
         threat.marker.setLatLng([threat.lat, threat.lng]);
-        threat.marker.bindPopup(
-            `<b>${threat.name}</b><br>` +
-            `Швидкість: ${threat.speedKmH} км/год<br>` +
-            `Курс: ${threat.heading}°<br>` +
-            `Координати: ${threat.lat.toFixed(2)}, ${threat.lng.toFixed(2)}`
-        );
     });
 }, 1000);
